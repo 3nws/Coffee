@@ -30,9 +30,7 @@ import kotlin.time.Duration.Companion.seconds
 class ForegroundService : Service(), ServiceStatusObserver {
     private var wakeLock: PowerManager.WakeLock? = null
     private var timeoutJob: Job? = null
-    private var screenStateListener = ScreenStateChangedReceiver()
     private var prefsChangeListener = PrefChangeListener()
-    private var isScreenStateListenerRegistered = false
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "onStartCommand()")
@@ -58,13 +56,6 @@ class ForegroundService : Service(), ServiceStatusObserver {
         startWakeLockOrAlternateMode()
         startTimeoutJob()
 
-        if (!isScreenStateListenerRegistered) {
-            val intentFilter = IntentFilter().apply {
-                addAction(Intent.ACTION_SCREEN_OFF)
-            }
-            registerReceiver(screenStateListener, intentFilter)
-            isScreenStateListenerRegistered = true
-        }
         return START_STICKY
     }
 
@@ -245,10 +236,6 @@ class ForegroundService : Service(), ServiceStatusObserver {
         Prefs(applicationContext)
             .sharedPrefs.
             unregisterOnSharedPreferenceChangeListener(prefsChangeListener)
-        if (isScreenStateListenerRegistered) {
-            unregisterReceiver(screenStateListener)
-            isScreenStateListenerRegistered = false
-        }
         coffeeApp().apply {
             observers.remove(this@ForegroundService)
             notifyObservers(ServiceStatus.Stopped)
@@ -266,16 +253,6 @@ class ForegroundService : Service(), ServiceStatusObserver {
     }
 
     override fun onBind(p0: Intent?): IBinder? = null
-
-    private class ScreenStateChangedReceiver : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action != Intent.ACTION_SCREEN_OFF || context == null) {
-                return
-            }
-            Log.d(TAG, "Received screen off event: Stop service")
-            changeState(context, STATE.STOP, false)
-        }
-    }
 
     private inner class PrefChangeListener : SharedPreferences.OnSharedPreferenceChangeListener {
         override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences, key: String?) {
